@@ -1,0 +1,40 @@
+# Theme from docs/requirements/02-ui-ux-requirements.md section 3 (those tokens win).
+# Light theme first. Colors here feed st.badge, alerts and charts too.
+
+[theme]
+base = "light"
+primaryColor = "#4F46E5"            # primary: indigo, buttons/links/active
+linkColor = "#4F46E5"
+backgroundColor = "#F8FAFC"         # bg
+secondaryBackgroundColor = "#FFFFFF" # surface (cards, sidebar)
+textColor = "#0F172A"               # text
+borderColor = "#E2E8F0"
+font = "sans-serif"
+baseFontSize = 16
+baseRadius = "0.5rem"
+
+# Named colors used by st.badge(color=...) in app/components:
+greenColor = "#10B981"              # success / Beginner level
+orangeColor = "#F97316"             # warning: few seats left
+redColor = "#DC2626"                # danger: errors, sold out
+yellowColor = "#F59E0B"             # accent-xp: XP pills and bars
+violetColor = "#7C3AED"             # Advanced level
+blueColor = "#4F46E5"               # Intermediate level (indigo)
+grayColor = "#94A3B8"               # locked
+
+# Darker text on tinted backgrounds keeps WCAG AA contrast (doc 02 section 8:
+# "use dark text on amber pills").
+yellowTextColor = "#78350F"
+orangeTextColor = "#9A3412"
+greenTextColor = "#065F46"
+grayTextColor = "#475569"           # text-muted
+
+[client]
+# Never show stack traces to users (NFR-SEC-17); details stay in the terminal log.
+# While developing you can see them in the browser with:
+#   streamlit run app/streamlit_app.py --client.showErrorDetails=full
+showErrorDetails = "none"
+
+[server]
+# Max upload size in MB. Course images are limited to 2 MB (US-703), so 5 is plenty.
+maxUploadSize = 5
