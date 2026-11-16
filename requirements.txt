@@ -1,1 +1,12 @@
-# Python dependencies will be added once the requirement documents are finalized.
+# Python 3.11 or newer is required (developed and tested on 3.11 / 3.12).
+# Versions are pinned so every laptop, CI and Streamlit Cloud run the same code.
+# To add a dependency, put it here in your story PR; the Tech Lead reviews it.
+
+# App
+streamlit==1.67.0
+supabase==2.34.1
+python-dotenv==1.2.4
+
+# Development tools (tests and lint)
+pytest==9.2.0
+ruff==0.17.5
