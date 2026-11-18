@@ -5,9 +5,16 @@ that survive a page switch.
 Polish story: U1-18. Keep these function signatures.
 """
 
+from collections.abc import Callable
+from typing import TypeVar
+
 import streamlit as st
 
 from app.config import routes
+from app.utils.log import get_logger
+
+logger = get_logger(__name__)
+T = TypeVar("T")
 
 GENERIC_ERROR = "Something went wrong, please try again."
 RETURN_TO_KEY = "return_to"  # page to open after sign-in (US-401 AC1)
@@ -27,7 +34,11 @@ def empty_state(
     action_page: str | None = None,
     icon: str = ":material/inbox:",
 ) -> None:
-    """Friendly "nothing here yet" box with an optional link to another page."""
+    """Friendly "nothing here yet" box with an optional link to another page.
+
+    `title` and `message` are shown as Markdown: pass static text, or escape
+    user/DB text with app.utils.text.escape_markdown first.
+    """
     with st.container(border=True):
         st.markdown(f"**{title}**")
         if message:
@@ -43,8 +54,15 @@ def error_state(message: str = GENERIC_ERROR) -> None:
 
 def not_found(what: str = "Page") -> None:
     """Shown when a course, order or page does not exist (or is not visible to you)."""
-    st.warning(f"{what} not found.", icon=":material/search_off:")
-    st.page_link(routes.COURSES, label="Browse courses", icon=":material/school:")
+    st.warning(
+        f"{what} not found.",
+        title="Nothing here",
+        icon=":material/search_off:",
+    )
+    st.caption("It may have been moved, renamed or is not available right now.")
+    with st.container(horizontal=True):
+        st.page_link(routes.COURSES, label="Browse courses", icon=":material/school:")
+        st.page_link(routes.HOME, label="Back to store", icon=":material/storefront:")
 
 
 def store_unavailable() -> None:
@@ -88,3 +106,33 @@ def show_flash() -> None:
     message = st.session_state.pop(_FLASH_KEY, None)
     if message:
         st.toast(message, icon=":material/check_circle:")
+
+
+def loading_skeleton(rows: int = 3, height: int = 120):  # -> st.empty placeholder
+    """Show grey skeleton boxes while slow data loads (doc 02 S2, S16 "loading").
+
+    Use it like this:
+        placeholder = loading_skeleton()
+        data = slow_call()
+        placeholder.empty()   # remove the skeletons
+    """
+    placeholder = st.empty()
+    with placeholder.container():
+        for _ in range(rows):
+            st.skeleton(height=height)
+    return placeholder
+
+
+def load_or_stop(load: Callable[[], T], where: str) -> T:
+    """Run a data-loading call; if the database can't be reached, show the
+    "Store unavailable" state and stop the page (NFR-REL-01).
+
+    `where` is a short label for the log line, e.g. "courses page" (no personal data).
+    """
+    try:
+        return load()
+    except Exception:  # any network/database error: friendly page, details only in the log
+        logger.exception("data load failed on %s", where)
+        store_unavailable()
+        st.stop()
+        raise  # never reached: st.stop() ends the run; this line keeps type checkers happy

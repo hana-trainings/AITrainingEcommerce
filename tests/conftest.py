@@ -388,7 +388,8 @@ class FakeAuth:
         )
         return self._response(email)
 
-    def sign_out(self) -> None:
+    def sign_out(self, options: dict | None = None) -> None:
+        self.sign_out_options = options  # tests check the scope ("local" vs "global")
         self.signed_in_user_id = None
 
 
@@ -444,3 +445,14 @@ def session_state(monkeypatch: pytest.MonkeyPatch, fake_client: FakeSupabaseClie
     state: dict[str, Any] = {CLIENT_SESSION_KEY: fake_client}
     monkeypatch.setattr(st, "session_state", state)
     return state
+
+
+@pytest.fixture(autouse=True)
+def clear_streamlit_cache():
+    """Empty st.cache_data before every test (U1-09 caches the public catalog).
+
+    Without this, one test could see catalog data cached by an earlier test.
+    """
+    st.cache_data.clear()
+    yield
+    st.cache_data.clear()
