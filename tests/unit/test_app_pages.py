@@ -41,7 +41,8 @@ def all_text(at: AppTest) -> str:
 def test_home_opens_for_guest(app):
     app.run()
     assert not app.exception
-    assert "Coming soon" in all_text(app)
+    # Home was a "Coming soon" stub in the foundation; US-106 built the real guest hero.
+    assert "Unlock your AI & Data skills" in all_text(app)
 
 
 def test_sign_in_page_renders(app):
@@ -96,7 +97,9 @@ def test_staff_can_open_admin_page_but_not_staff_management(app):
     sign_in_as(app, STAFF_ID, "staff")
     app.run()
     app.switch_page("pages/admin_dashboard.py").run()
-    assert "Coming soon" in all_text(app)
+    # The dashboard is real now (US-701, US-708): staff see it, not the access-denied state.
+    assert "Admin dashboard" in all_text(app)
+    assert "You don't have access" not in all_text(app)
 
     app.switch_page("pages/admin_staff.py").run()
     assert "You don't have access" in all_text(app)  # owner only (US-709 AC3)
