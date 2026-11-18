@@ -143,6 +143,8 @@ class CartLine(TypedDict, total=False):
     seats_available: int
     is_available: bool  # False if unpublished or sold out (US-307)
     problem: str  # friendly reason when not available
+    module_count: int  # for the "Unlock preview" (US-302 AC2), added by U2-02
+    already_owned: bool  # bought before: no XP again (US-601), added by U2-02
 
 
 class CartSummary(TypedDict):
