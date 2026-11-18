@@ -15,17 +15,24 @@ Security notes for learners:
 """
 
 import re
+import time
 
 import streamlit as st
 
 from app.models.domain import ActionResult, CurrentUser, Role
 from app.services.supabase_client import get_client, reset_client
 from app.utils.log import get_logger
+from app.utils.text import escape_markdown
 
 logger = get_logger(__name__)
 
 CURRENT_USER_KEY = "current_user"
 AUTH_TOKENS_KEY = "auth_tokens"
+
+SESSION_EXPIRED_KEY = "session_expired"  # set after an expired session is signed out (U3-15)
+SESSION_EXPIRED_MESSAGE = "Your session expired, please sign in again."
+# Refresh a little BEFORE the token really expires, so a request never uses a dead token.
+REFRESH_MARGIN_SECONDS = 60
 
 GENERIC_SIGN_IN_ERROR = "Email or password is incorrect."
 GENERIC_REGISTER_ERROR = "We could not create your account. Please try again."
@@ -80,8 +87,39 @@ def validate_registration(
 
 # ---------------------------------------------------------------- session helpers
 def current_user() -> CurrentUser | None:
-    """Return the signed-in user from this session, or None for a guest."""
-    return st.session_state.get(CURRENT_USER_KEY)
+    """Return the signed-in user from this session, or None for a guest.
+
+    It also keeps the sign-in alive (NFR-AUTH-04): if the access token is about to
+    expire it is refreshed; if that fails the user is signed out with a message.
+    """
+    user = st.session_state.get(CURRENT_USER_KEY)
+    if user is not None and _token_needs_refresh() and not refresh_session():
+        _expire_session()
+        return None
+    return user
+
+
+def reload_current_user() -> CurrentUser | None:
+    """Re-read name, role, XP and level from the database into the session user.
+
+    Call it after the database awarded XP (e.g. profile completion) so the header
+    shows the new numbers right away.
+    """
+    user = st.session_state.get(CURRENT_USER_KEY)
+    if user is None:
+        return None
+    try:
+        row = _load_profile_row(user.id)
+    except Exception as error:
+        logger.info("reload_current_user failed: %s", type(error).__name__)
+        return user
+    if row:
+        user.display_name = row.get("display_name") or user.display_name
+        user.role = row.get("role") or user.role
+        user.xp_total = int(row.get("xp_total") or 0)
+        user.level = int(row.get("level") or 1)
+        st.session_state[CURRENT_USER_KEY] = user
+    return user
 
 
 def _remember_session(session: object, user: CurrentUser) -> None:
@@ -145,9 +183,72 @@ def sign_in(email: str, password: str) -> ActionResult:
         return ActionResult(ok=False, message=GENERIC_SIGN_IN_ERROR)
 
     _remember_session(response.session, user)
-    # U2-14 (US-306) adds ONE call here: cart.merge_guest_cart(user.id)
+    cart_warning = _merge_guest_cart(user.id)
     logger.info("sign_in ok: user_id=%s role=%s", user.id, user.role)
-    return ActionResult(ok=True, message=f"Welcome back, {user.display_name}!")
+    # The name is shown as Markdown (toast), so escape it.
+    welcome = f"Welcome back, {escape_markdown(user.display_name)}!"
+    return ActionResult(
+        ok=True,
+        message=f"{welcome} {cart_warning}".strip(),
+        data={"cart_warning": cart_warning},
+    )
+
+
+CART_MERGE_FAILED = (
+    "Some courses from your cart could not be saved to your account. "
+    "Please check your cart and add them again."
+)
+
+
+def _merge_guest_cart(user_id: str) -> str:
+    """Move the guest cart into the saved cart (US-306). Never blocks sign-in or register.
+
+    Returns "" if fine, or a friendly message to show the user if it failed.
+    """
+    # Imported here, not at the top: cart.py may import auth, and a top-level import
+    # both ways would be a circular import.
+    from app.services import cart
+
+    try:
+        result = cart.merge_guest_cart(user_id)
+    except Exception as error:  # the cart is a nice-to-have; signing in matters more
+        logger.warning("merge_guest_cart failed: user_id=%s %s", user_id, type(error).__name__)
+        return CART_MERGE_FAILED
+    if result is not None and not result.ok:
+        return result.message or CART_MERGE_FAILED
+    return ""
+
+
+def _has_badge(user_id: str, badge_code: str) -> bool:
+    """True if the database has awarded this badge to the user (read, never awarded here)."""
+    try:
+        rows = (
+            get_client()
+            .table("user_badges")
+            .select("badge_code")
+            .eq("user_id", user_id)
+            .eq("badge_code", badge_code)
+            .limit(1)
+            .execute()
+            .data
+        )
+    except Exception as error:
+        logger.info("badge check failed: %s", type(error).__name__)
+        return False
+    return bool(rows)
+
+
+def _register_welcome(user: CurrentUser) -> str:
+    """Welcome text that names the REAL rewards the database gave (US-501 AC4, US-603 AC2)."""
+    message = f"Welcome, {escape_markdown(user.display_name)}! Your account is ready."
+    rewards = []
+    if _has_badge(user.id, "first_step"):
+        rewards.append("the First Step badge")
+    if user.xp_total > 0:
+        rewards.append(f"+{user.xp_total} XP")
+    if rewards:
+        message += " You earned " + " and ".join(rewards) + "."
+    return message
 
 
 def register(display_name: str, email: str, password: str, confirm_password: str) -> ActionResult:
@@ -185,8 +286,14 @@ def register(display_name: str, email: str, password: str, confirm_password: str
 
     user = _build_current_user(response.user)
     _remember_session(response.session, user)
+    # A guest who registers from checkout keeps the courses in their cart (US-401, US-306).
+    cart_warning = _merge_guest_cart(user.id)
     logger.info("register ok: user_id=%s", user.id)
-    return ActionResult(ok=True, message=f"Welcome, {user.display_name}! Your account is ready.")
+    return ActionResult(
+        ok=True,
+        message=f"{_register_welcome(user)} {cart_warning}".strip(),
+        data={"cart_warning": cart_warning},
+    )
 
 
 def _is_duplicate_email_error(error: Exception) -> bool:
@@ -199,7 +306,9 @@ def sign_out() -> None:
     """Sign out and forget everything about this session (US-503, NFR-AUTH-05)."""
     if CURRENT_USER_KEY in st.session_state:
         try:
-            get_client().auth.sign_out()
+            # "local" signs out only THIS browser session. The default ("global") would
+            # end every session of the account, and the class shares demo accounts.
+            get_client().auth.sign_out({"scope": "local"})
         except Exception as error:  # we still clear local state below
             logger.info("sign_out remote call failed: %s", type(error).__name__)
     # Clear tokens, user, guest cart and every other per-session value.
@@ -238,11 +347,51 @@ def require_role(*allowed_roles: Role) -> CurrentUser | None:
     return user if role in allowed_roles else None
 
 
+def _token_needs_refresh() -> bool:
+    """True if this session has tokens and the access token (almost) expired."""
+    tokens = st.session_state.get(AUTH_TOKENS_KEY) or {}
+    expires_at = tokens.get("expires_at")
+    if not tokens.get("refresh_token") or not expires_at:
+        return False  # nothing we can refresh (e.g. a test user without tokens)
+    return time.time() >= float(expires_at) - REFRESH_MARGIN_SECONDS
+
+
+def _expire_session() -> None:
+    """Sign out cleanly after a failed refresh and leave a friendly message."""
+    logger.info("session expired; signing out")
+    sign_out()
+    st.session_state[SESSION_EXPIRED_KEY] = True
+    # Imported here because components import services (avoid a circular import).
+    from app.components.states import flash
+
+    flash(SESSION_EXPIRED_MESSAGE)
+
+
 def refresh_session() -> bool:
     """Refresh an expired access token with the refresh token (U3-15, NFR-AUTH-04).
 
     Returns True if the session is still valid (refreshed or not expired yet).
     Returns False if refresh failed; the caller then calls sign_out() and shows
     "Your session expired, please sign in again."
+    Guests have nothing to refresh, so they get True.
     """
-    raise NotImplementedError("U3-15 NFR-AUTH-04")
+    tokens = st.session_state.get(AUTH_TOKENS_KEY) or {}
+    if not tokens.get("refresh_token"):
+        return True
+    if not _token_needs_refresh():
+        return True
+    try:
+        # The Supabase client also switches its database requests to the new token.
+        response = get_client().auth.refresh_session(tokens["refresh_token"])
+    except Exception as error:  # expired or revoked refresh token, network problem, ...
+        logger.info("refresh_session failed: %s", type(error).__name__)
+        return False
+    session = getattr(response, "session", None)
+    if session is None or not getattr(session, "access_token", None):
+        return False
+    st.session_state[AUTH_TOKENS_KEY] = {
+        "access_token": session.access_token,
+        "refresh_token": getattr(session, "refresh_token", None),
+        "expires_at": getattr(session, "expires_at", None),
+    }
+    return True

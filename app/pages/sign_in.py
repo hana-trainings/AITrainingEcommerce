@@ -18,6 +18,10 @@ if user is not None:
     st.page_link(routes.PASSPORT, label="Go to your Learner Passport", icon=":material/badge:")
     st.stop()
 
+# NFR-AUTH-04: explain why the user has to sign in again (shown once).
+if st.session_state.pop(auth.SESSION_EXPIRED_KEY, False):
+    st.warning(auth.SESSION_EXPIRED_MESSAGE, icon=":material/schedule:")
+
 # A form sends email + password together, only when the button is pressed.
 with st.form("sign_in_form"):
     email = st.text_input("Email", max_chars=254, autocomplete="email")
