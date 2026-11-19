@@ -456,3 +456,11 @@ def clear_streamlit_cache():
     st.cache_data.clear()
     yield
     st.cache_data.clear()
+
+
+@pytest.fixture(autouse=True)
+def outbox_in_temp_folder(tmp_path, monkeypatch):
+    """Email files (welcome, order confirmation) go to a temporary folder, never outbox/."""
+    from app.services import email_outbox
+
+    monkeypatch.setattr(email_outbox, "OUTBOX_PATH", tmp_path / "outbox")

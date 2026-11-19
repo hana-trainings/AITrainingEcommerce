@@ -25,7 +25,8 @@ WCAG AA (4.5:1). Amber is never used for plain text on white.
 
 ## 2. Typography and spacing
 
-- Streamlit's default sans-serif, base 16px. Nothing smaller than 14px (`st.caption`).
+- Inter (loaded in `.streamlit/config.toml`), base 16px. Nothing smaller than 14px (`st.caption`).
+- Heading sizes are set in the theme: H1 32px, H2 24px, H3 20px (doc 02 section 3.3).
 - `st.title` (H1) once per page, `st.header` for sections, `st.subheader` inside a section.
 - Prices: `#### $49.00` on cards, `## $49.00` on the detail buy box.
 - Sentence case everywhere ("Add to cart", not "Add To Cart").
@@ -69,7 +70,28 @@ Layouts: card walls use `st.grid(3 or 4, min_column_width=240..260)` so they
 drop to one card per row on a 390px phone. Toolbars and chips use
 `st.container(horizontal=True)`, which wraps.
 
-## 5. Do and don't
+## 5. Where the color comes from
+
+| Piece | File | What it does |
+|---|---|---|
+| Theme | `.streamlit/config.toml` | Brand colors, Inter font, heading sizes, dark-navy sidebar, hides the "Deploy" toolbar |
+| Storefront styles | `app/components/style.py` | Gradient hero, tinted "How it works" steps, colored path steps, course card stripe, seat bar. Added to every page by the header. |
+
+How a style reaches one element: give its container a `key` (for example
+`st.container(key="hero")`). Streamlit adds the CSS class `st-key-hero`, and `style.py`
+styles only those `st-key-...` classes. Never style Streamlit's own internal class names:
+they change between versions. Admin pages use no keyed containers, so they stay plain.
+
+| Element | Key pattern | Look |
+|---|---|---|
+| Home hero | `hero` | Indigo to purple gradient, white text, white buttons |
+| How it works | `how_path`, `how_unlock`, `how_xp` | Indigo, green, amber tints |
+| Path map | `pathmap-<path>` | White card, indigo top border |
+| Path step | `node-<owned/in_cart/locked>-...` | Green solid, indigo solid, grey dashed |
+| Course card | `card-<level>-...` | Green, indigo or purple top stripe by level |
+| Store header | `site_header` | White bar, indigo bottom border |
+
+## 6. Do and don't
 
 Do:
 - Show price, level, duration and the main button on every card and detail page.
@@ -82,6 +104,6 @@ Do:
 Don't:
 - No countdown timers, "X people are viewing", random rewards, leaderboards, streaks or penalties (US-606).
 - No "Almost full" label unless the seat meter really says "Few seats left".
-- No `unsafe_allow_html` with user or database text; no custom CSS selectors.
+- No `unsafe_allow_html` with user or database text; CSS only in `style.py` and only on `st-key-...` classes.
 - No hover-only information (it does not work on phones).
 - No gambling symbols (dice, chests, slot machines) or mature imagery.

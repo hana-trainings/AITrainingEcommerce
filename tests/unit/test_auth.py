@@ -101,3 +101,46 @@ def test_password_rules():
     assert auth.validate_password("abcdefgh")  # no number
     assert auth.validate_password("12345678")  # no letter
     assert auth.validate_password("a1")  # too short
+
+
+def test_register_saves_a_welcome_email_draft(session_state, fake_client):
+    auth.register("New Learner", "new@example.test", "Abcdefg1", "Abcdefg1")
+
+    drafts = fake_client.tables["email_outbox"]
+    assert len(drafts) == 1
+    assert drafts[0]["email_type"] == "welcome"
+    assert drafts[0]["status"] == "draft"
+    assert drafts[0]["to_email"] == "new@example.test"
+    assert drafts[0]["user_id"] == auth.current_user().id
+
+
+def test_register_still_works_if_the_welcome_email_fails(session_state, monkeypatch):
+    from app.services import email_outbox
+
+    def broken(*_args, **_kwargs):
+        raise RuntimeError("database down")
+
+    monkeypatch.setattr(email_outbox, "save_welcome_email", broken)
+
+    result = auth.register("New Learner", "new@example.test", "Abcdefg1", "Abcdefg1")
+
+    assert result.ok
+    assert auth.current_user() is not None
+
+
+def test_register_when_confirm_email_is_on_explains_it(session_state, fake_client, monkeypatch):
+    # With "Confirm email" ON, Supabase creates the user but returns no session.
+    real_sign_up = fake_client.auth.sign_up
+
+    def sign_up_without_session(credentials):
+        response = real_sign_up(credentials)
+        response.session = None
+        return response
+
+    monkeypatch.setattr(fake_client.auth, "sign_up", sign_up_without_session)
+
+    result = auth.register("New Learner", "new@example.test", "Abcdefg1", "Abcdefg1")
+
+    assert not result.ok
+    assert result.message == auth.CONFIRM_EMAIL_MESSAGE
+    assert fake_client.tables["email_outbox"] == []  # no draft: the user is not signed in

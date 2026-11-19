@@ -21,10 +21,10 @@ from app.services.supabase_client import CLIENT_SESSION_KEY
 from tests.conftest import CUSTOMER_ID, STAFF_ID
 
 APP_FILE = str(Path(__file__).resolve().parents[2] / "app" / "streamlit_app.py")
-HOME = "pages/home.py"
-COURSES = "pages/courses.py"
-DETAIL = "pages/course_detail.py"
-PATHS = "pages/learning_paths.py"
+HOME = "views/home.py"
+COURSES = "views/courses.py"
+DETAIL = "views/course_detail.py"
+PATHS = "views/learning_paths.py"
 
 MODULES = [
     {"id": 1, "course_id": 102, "position": 1, "title": "Select basics", "description": "Rows."},
@@ -115,6 +115,8 @@ def all_text(at: AppTest) -> str:
     ]
     parts += [str(link.proto.label) for link in at.get("page_link")]
     parts += [str(bar.proto.text) for bar in at.get("progress")]
+    # The seat meter draws its "8 of 30 seats left" label as HTML (seat_meter.py).
+    parts += [str(block.proto.body) for block in at.get("html")]
     parts += [button.label for button in at.button]
     return " ".join(str(part) for part in parts)
 
@@ -217,10 +219,10 @@ def test_add_to_cart_on_home_queues_toast_for_the_rerun(app, services):
 
     assert not app.exception
     assert services["calls"]["added"] == [101]
-    # The toast is queued with flash(); in the real app the header shows it on the
-    # st.rerun() together with the new cart count. (AppTest does not redraw the
-    # header on reruns, so the header itself is checked in the header tests below.)
-    assert app.session_state["flash_message"] == "Added to your cart."
+    # The toast is queued with flash(); the header shows it on the st.rerun()
+    # together with the new cart count, and removes it from the queue.
+    assert [toast.value for toast in app.toast] == ["Added to your cart."]
+    assert "flash_message" not in app.session_state
 
 
 # ---------------------------------------------------------------- Course detail (US-201 to US-205)
@@ -340,7 +342,9 @@ def test_learning_paths_page_for_guest(app):
     text = all_text(app)
     assert "Data Analyst Path" in text
     assert "0 of 2 unlocked · +250 XP bonus" in text  # AC2
-    assert "Step 1: Python for Data Beginners" in text  # nodes link to the course (AC3)
+    # Each step shows its position and the full course title (never cut off).
+    assert "Step 1 of 2" in text and "Python for Data Beginners" in text
+    assert "View course" in text  # nodes link to the course (AC3)
     assert "Total $128.00" in text
 
 
@@ -401,9 +405,9 @@ def test_header_runs_on_a_non_home_page(app, services, monkeypatch):
     real_render_header = header.render_header
     seen = {"users": [], "labels": []}
 
-    def spy_render_header(user):
+    def spy_render_header(user, **options):
         seen["users"].append(user)
-        real_render_header(user)
+        real_render_header(user, **options)
 
     real_cart_label = header.cart_label
     monkeypatch.setattr(header, "render_header", spy_render_header)

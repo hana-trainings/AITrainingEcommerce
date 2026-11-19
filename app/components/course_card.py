@@ -44,6 +44,20 @@ _PLACEHOLDER_SVG = (
 )
 
 
+# One icon per category (doc 02 section 3.4). Unknown categories get a book.
+_CATEGORY_ICONS = {
+    "Artificial Intelligence": ":material/auto_awesome:",
+    "Machine Learning": ":material/hub:",
+    "Data Analytics": ":material/bar_chart:",
+    "Data Engineering": ":material/database:",
+}
+
+
+def category_icon(category_name: str) -> str:
+    """Material icon for a category name, e.g. "Data Analytics" -> bar chart."""
+    return _CATEGORY_ICONS.get(category_name, ":material/menu_book:")
+
+
 def placeholder_image(level: str) -> str:
     """Return a small static SVG gradient for a course without an image."""
     start, end = _GRADIENTS.get(level, ("#94A3B8", "#475569"))
@@ -87,9 +101,13 @@ def course_card(
     seats_total = int(course.get("seats_total") or 0)
 
     # height="stretch" makes cards in the same grid row equally tall.
-    with st.container(border=True, height="stretch"):
+    # The key gives a CSS class (st-key-card-<level>-...) for the level's color stripe.
+    level = str(course.get("level", "")).lower() or "other"
+    card_key = f"card-{level}-{key_prefix}-{course.get('id', '')}"
+    with st.container(key=card_key, height="stretch"):
         course_image(course)
-        st.caption(escape_markdown(course.get("category_name", "")))
+        category = str(course.get("category_name", ""))
+        st.caption(f"{category_icon(category)} {escape_markdown(category)}")
         st.page_link(
             routes.COURSE_DETAIL,
             label=f"**{title}**",

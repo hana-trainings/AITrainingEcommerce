@@ -22,6 +22,7 @@ This guide sets up every table, security rule, function and the image bucket in 
 | `migrations/0014_place_order.sql` | The checkout function `place_order(p_idempotency_key)` |
 | `migrations/0020_email_outbox_one_per_order.sql` | One confirmation email per order (unique `order_id`), so a customer can't add a fake second email |
 | `migrations/0025_admin_save_children.sql` | Admin functions that save a course's modules and path steps, and a path's course list, in one transaction |
+| `migrations/0030_email_drafts.sql` | Turns `email_outbox` into the app's own email service: every email (order confirmation, welcome) is saved as a draft and never sent. One welcome email per user, only to their own address |
 | `seed/01_catalog.sql` | 4 categories, 14 courses with modules, 3 learning paths, path badges |
 | `seed/02_sample_orders.sql` | Sample orders for the demo customers (needs the demo users first) |
 | `tests/place_order_test.sql` | Proves checkout cannot over-book or run twice (rolls everything back) |
@@ -34,11 +35,11 @@ The order matters: each file uses things made by the files before it.
 
 1. Open the Supabase dashboard and pick your **DEV** project. Check the project name at the top before you continue.
 2. Go to **SQL Editor** and click **New query**.
-3. For each file in `supabase/migrations/`, **in number order (0001 to 0014, then 0020 and 0025)**:
+3. For each file in `supabase/migrations/`, **in number order (0001 to 0014, then 0020, 0025 and 0030)**:
    1. Open the file in VS Code, select all, copy.
    2. Paste into the SQL editor and click **Run**.
    3. Wait for "Success. No rows returned". If you get an error, stop and read it. Do not skip a file.
-4. Go to **Authentication > Sign In / Providers > Email** and turn **Confirm email** off (no emails are sent in this demo). Set the minimum password length to 8.
+4. Go to **Authentication > Sign In / Providers > Email** and turn **Confirm email** off. Supabase must send no emails: the app's own email service saves every email as a draft instead (migration 0030, admin page **Email drafts**). Set the minimum password length to 8.
 5. Create the demo users and set their roles: follow [demo-accounts.md](demo-accounts.md).
 6. Run `supabase/seed/01_catalog.sql` in the SQL editor.
 7. Run `supabase/seed/02_sample_orders.sql`. The "Messages" tab shows which sample orders were created or skipped.

@@ -29,16 +29,29 @@ def seat_label(seats_available: int, seats_total: int) -> str:
     return f"{left} of {seats_total} {seats_word} left"
 
 
+def seats_left_percent(seats_available: int, seats_total: int) -> int:
+    """How much of the bar is filled: the share of seats still LEFT, 0-100 (pure)."""
+    if seats_total <= 0:
+        return 0
+    return round(min(max(seats_available / seats_total, 0.0), 1.0) * 100)
+
+
 def seat_meter(seats_available: int, seats_total: int) -> None:
     """Show the seat bar plus a text label (never color alone, doc 02 section 8).
 
-    The bar shows how FULL the course is, so it grows as seats are taken.
-    "Few seats left" / "Sold out" appear as a badge with words AND an icon,
-    so the state is never shown by color alone.
+    The bar shows the seats LEFT, like a fuel gauge: green when there is room,
+    orange when few seats are left, grey when sold out (doc 02 section 4).
+    "Few seats left" / "Sold out" also appear as a badge with words AND an icon.
+    The HTML holds only numbers we computed and fixed words: no text from users.
     """
     state = seat_state(seats_available, seats_total)
-    taken_share = 0.0 if seats_total <= 0 else 1 - max(seats_available, 0) / seats_total
-    st.progress(min(max(taken_share, 0.0), 1.0), text=seat_label(seats_available, seats_total))
+    percent = seats_left_percent(seats_available, seats_total)
+    label = seat_label(seats_available, seats_total)
+    st.html(
+        f'<p class="sf-seat-text">{label}</p>'
+        f'<div class="sf-seat-track" role="img" aria-label="{label}">'
+        f'<div class="sf-seat-fill sf-{state}" style="width: {percent}%"></div></div>'
+    )
     if state == "sold_out":
         st.badge("Sold out", icon=":material/block:", color="gray")
     elif state == "few":

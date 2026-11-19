@@ -334,6 +334,30 @@ select pg_temp.expect_blocked('2.41 A cannot save an email for B''s order (as A)
      values (current_setting('rlstest.b_order_id')::bigint, '00000000-0000-4000-8000-00000000a001',
              'x@skillforge.test', 'Fake', '<p>x</p>', 'fake.html')$q$);
 
+-- Welcome email drafts (migration 0030): only for yourself, to your own address, once.
+select pg_temp.expect_allowed('2.42 A can save their own welcome email draft',
+  $q$insert into public.email_outbox (email_type, user_id, to_email, subject, html_body, file_name)
+     values ('welcome', '00000000-0000-4000-8000-00000000a001', 'rls-test-a@skillforge.test',
+             'Welcome', '<p>Hi</p>', 'welcome_rls_a.html')$q$);
+do $$
+begin
+  insert into public.email_outbox (email_type, user_id, to_email, subject, html_body, file_name)
+  values ('welcome', '00000000-0000-4000-8000-00000000a001', 'rls-test-a@skillforge.test',
+          'Welcome again', '<p>Hi</p>', 'welcome_rls_a2.html');
+  raise exception 'FAIL 2.43: a second welcome email was saved';
+exception when unique_violation then
+  raise notice 'PASS 2.43 A cannot save a second welcome email (refused: %)', sqlerrm;
+end;
+$$;
+select pg_temp.expect_blocked('2.44 A cannot save a welcome email for B',
+  $q$insert into public.email_outbox (email_type, user_id, to_email, subject, html_body, file_name)
+     values ('welcome', '00000000-0000-4000-8000-00000000b002', 'rls-test-b@skillforge.test',
+             'Fake', '<p>x</p>', 'fake.html')$q$);
+select pg_temp.expect_blocked('2.45 A cannot send their welcome email to another address',
+  $q$insert into public.email_outbox (email_type, user_id, to_email, subject, html_body, file_name)
+     values ('welcome', '00000000-0000-4000-8000-00000000a001', 'someone-else@skillforge.test',
+             'Fake', '<p>x</p>', 'fake.html')$q$);
+
 -- A cannot raise their own role, XP or level.
 select pg_temp.expect_blocked('2.50 A cannot make themselves staff',
   $q$update public.profiles set role = 'staff' where id = '00000000-0000-4000-8000-00000000a001'$q$);

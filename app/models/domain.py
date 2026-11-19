@@ -204,7 +204,9 @@ class PlaceOrderOutcome:
 
 class EmailRecord(TypedDict, total=False):
     id: int
-    order_id: int
+    email_type: str  # "order_confirmation" or "welcome" (migration 0030)
+    status: str  # always "draft": the app never sends email
+    order_id: int | None  # None for a welcome email
     user_id: str
     to_email: str
     subject: str

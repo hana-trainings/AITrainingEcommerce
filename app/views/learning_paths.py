@@ -75,4 +75,5 @@ for path in paths:
         path["name"],
         path_nodes_for(path, owned_ids, cart_ids),
         bonus_xp=int(path.get("bonus_xp") or 0),
+        show_title=False,  # the path name is already the heading above
     )

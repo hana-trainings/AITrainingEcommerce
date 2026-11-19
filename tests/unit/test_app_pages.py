@@ -47,7 +47,7 @@ def test_home_opens_for_guest(app):
 
 def test_sign_in_page_renders(app):
     app.run()
-    app.switch_page("pages/sign_in.py").run()
+    app.switch_page("views/sign_in.py").run()
 
     assert not app.exception
     assert [box.label for box in app.text_input] == ["Email", "Password"]
@@ -56,7 +56,7 @@ def test_sign_in_page_renders(app):
 
 def test_sign_in_with_wrong_password_shows_generic_error(app):
     app.run()
-    app.switch_page("pages/sign_in.py").run()
+    app.switch_page("views/sign_in.py").run()
     app.text_input[0].input("customer@example.test")
     app.text_input[1].input("WrongPass1")
     app.button[0].click().run()
@@ -67,7 +67,7 @@ def test_sign_in_with_wrong_password_shows_generic_error(app):
 
 def test_sign_in_with_right_password_signs_in(app):
     app.run()
-    app.switch_page("pages/sign_in.py").run()
+    app.switch_page("views/sign_in.py").run()
     app.text_input[0].input("customer@example.test")
     app.text_input[1].input(DEMO_PASSWORD)
     app.button[0].click().run()
@@ -78,7 +78,7 @@ def test_sign_in_with_right_password_signs_in(app):
 
 def test_guest_on_admin_page_sees_access_denied(app):
     app.run()
-    app.switch_page("pages/admin_dashboard.py").run()
+    app.switch_page("views/admin_dashboard.py").run()
 
     assert not app.exception
     assert "You don't have access" in all_text(app)
@@ -88,7 +88,7 @@ def test_guest_on_admin_page_sees_access_denied(app):
 def test_customer_on_admin_page_sees_access_denied(app):
     sign_in_as(app, CUSTOMER_ID, "customer")
     app.run()
-    app.switch_page("pages/admin_dashboard.py").run()
+    app.switch_page("views/admin_dashboard.py").run()
 
     assert "You don't have access" in all_text(app)
 
@@ -96,18 +96,18 @@ def test_customer_on_admin_page_sees_access_denied(app):
 def test_staff_can_open_admin_page_but_not_staff_management(app):
     sign_in_as(app, STAFF_ID, "staff")
     app.run()
-    app.switch_page("pages/admin_dashboard.py").run()
+    app.switch_page("views/admin_dashboard.py").run()
     # The dashboard is real now (US-701, US-708): staff see it, not the access-denied state.
     assert "Admin dashboard" in all_text(app)
     assert "You don't have access" not in all_text(app)
 
-    app.switch_page("pages/admin_staff.py").run()
+    app.switch_page("views/admin_staff.py").run()
     assert "You don't have access" in all_text(app)  # owner only (US-709 AC3)
 
 
 def test_guest_on_checkout_is_asked_to_sign_in(app):
     app.run()
-    app.switch_page("pages/checkout.py").run()
+    app.switch_page("views/checkout.py").run()
 
     assert not app.exception
     assert "Please sign in" in all_text(app)

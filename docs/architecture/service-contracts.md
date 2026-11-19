@@ -6,7 +6,7 @@ it does not change the signature. If a signature must change, open a small separ
 (work plan section 4.2). Data shapes (`Course`, `CartLine`, `ActionResult`, ...) are in
 `app/models/domain.py`.
 
-Layers: page (`app/pages`) -> service (`app/services`) -> Supabase table + RLS (`supabase/migrations`).
+Layers: page (`app/views`) -> service (`app/services`) -> Supabase table + RLS (`supabase/migrations`).
 Pages never import `supabase`; only services do, through `supabase_client.get_client()`
 (one client per browser session, kept in `st.session_state`).
 
@@ -50,6 +50,9 @@ IDs: `profiles.id` / user ids are uuid strings; every other id (course, category
 | email_outbox | `build_confirmation_email` | `order: Order, to_email: str, display_name: str` | US-406 (U2-06) | `EmailRecord` | real |
 | email_outbox | `save_confirmation_email` | `order_id: int` | US-406 (U2-06), NFR-REL-02 | `ActionResult` (never raises) | real |
 | email_outbox | `get_email_for_order` | `order_id: int` | US-407 AC2 (U2-15), US-707 AC3 (U2-18) | `EmailRecord \| None` | real |
+| email_outbox | `build_welcome_email` | `user_id: str, to_email: str, display_name: str` | Email drafts (0030) | `EmailRecord` | real |
+| email_outbox | `save_welcome_email` | `user_id: str, to_email: str, display_name: str` | Email drafts (0030); called by `auth.register` | `ActionResult` (never raises) | real |
+| email_outbox | `list_drafts` | `email_type: str \| None = None, limit: int = 100` | Email drafts page (staff, owner) | `list[EmailRecord]` newest first | real |
 | profile | `get_my_profile` | – | US-504 (U3-04) | `Profile \| None` | real |
 | profile | `update_profile` | `display_name: str, avatar: str, interests: list[str]` | US-504 (U3-04) | `ActionResult` | real |
 | profile | `claim_profile_completion` | – | US-504 AC3 (U3-04), US-601 | `ActionResult` | real |
@@ -91,6 +94,8 @@ IDs: `profiles.id` / user ids are uuid strings; every other id (course, category
 | RPC `admin_replace_course_children(p_course_id, p_modules jsonb, p_path_positions jsonb)` | `admin.create_course`, `admin.update_course` | Migration 0025. Staff only, one transaction. Errors `NOT_ALLOWED`, `INVALID_REQUEST`, `COURSE_NOT_FOUND`, `DUPLICATE_PATH`, `POSITION_TAKEN`. |
 | RPC `admin_replace_path_courses(p_path_id, p_course_ids bigint[])` | `admin.save_path` | Migration 0025. Staff only, one transaction. Errors `NOT_ALLOWED`, `INVALID_REQUEST`, `DUPLICATE_COURSE`, `PATH_NOT_FOUND`, `POSITION_TAKEN`. |
 | `email_outbox` unique `order_id` | `email_outbox.save_confirmation_email` | Migration 0020. A repeat save hits 23505 and is treated as "already saved". |
+| `email_outbox` columns `email_type`, `status` | `email_outbox` service | Migration 0030. `email_type` is `order_confirmation` (needs `order_id`) or `welcome` (no `order_id`); `status` is always `draft`. |
+| `email_outbox_one_welcome_per_user` | `email_outbox.save_welcome_email` | Migration 0030. A second welcome email hits 23505 and is treated as "already saved". RLS allows a welcome draft only for yourself, to your own email address. |
 
 ## Shared UI components (`app/components/`)
 

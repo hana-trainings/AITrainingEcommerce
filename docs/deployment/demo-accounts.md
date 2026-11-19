@@ -18,7 +18,7 @@ All migrations must already be applied ([apply-database.md](apply-database.md)).
 ## Step 1: create the users (Supabase dashboard)
 
 1. Open your **DEV** project.
-2. **Authentication > Sign In / Providers > Email:** turn **Confirm email** off.
+2. **Authentication > Sign In / Providers > Email:** turn **Confirm email** off. Supabase then sends no emails. The app's own email service saves a welcome email as a **draft** instead; staff and the owner can read it on **Admin > Email drafts**.
 3. **Authentication > Users > Add user > Create new user** for each row in the table:
    - Email: from the table.
    - Password: the trainer's chosen password (at least 8 characters with a letter and a number).

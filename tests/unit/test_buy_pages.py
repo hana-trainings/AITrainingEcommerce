@@ -91,7 +91,7 @@ def add_cart_row(fake_client, course_id: int, quantity: int = 1) -> None:
 
 # ---------------------------------------------------------------- cart
 def test_empty_cart_shows_empty_state(app):
-    open_page(app, "pages/cart.py")
+    open_page(app, "views/cart.py")
 
     assert not app.exception
     assert "Your cart is empty" in all_text(app)
@@ -99,7 +99,7 @@ def test_empty_cart_shows_empty_state(app):
 
 def test_guest_cart_lists_items_summary_and_sign_in_link(app):
     app.session_state[GUEST_CART_KEY] = {101: 2}
-    open_page(app, "pages/cart.py")
+    open_page(app, "views/cart.py")
 
     assert not app.exception
     text = all_text(app)
@@ -110,7 +110,7 @@ def test_guest_cart_lists_items_summary_and_sign_in_link(app):
 
 def test_cart_flags_sold_out_line(app):
     app.session_state[GUEST_CART_KEY] = {103: 1}
-    open_page(app, "pages/cart.py")
+    open_page(app, "views/cart.py")
 
     assert "sold out" in all_text(app)
     assert "need your attention" in all_text(app)
@@ -119,7 +119,7 @@ def test_cart_flags_sold_out_line(app):
 def test_cart_change_quantity_and_remove(app, fake_client):
     sign_in_as(app, CUSTOMER_ID, "customer")
     add_cart_row(fake_client, 102)
-    open_page(app, "pages/cart.py")
+    open_page(app, "views/cart.py")
 
     app.number_input[0].set_value(3).run()
     assert fake_client.tables["cart_items"][0]["quantity"] == 3
@@ -132,7 +132,7 @@ def test_cart_change_quantity_and_remove(app, fake_client):
 def test_cart_shows_checkout_problem_message(app):
     app.session_state[GUEST_CART_KEY] = {102: 1}
     app.session_state[orders.CHECKOUT_PROBLEM_KEY] = "Only 1 seat(s) left for SQL for Analysts."
-    open_page(app, "pages/cart.py")
+    open_page(app, "views/cart.py")
 
     # Shown escaped for Markdown (the title comes from the database).
     assert escape_markdown("Only 1 seat(s) left for SQL for Analysts.") in all_text(app)
@@ -140,17 +140,17 @@ def test_cart_shows_checkout_problem_message(app):
 
 # ---------------------------------------------------------------- checkout
 def test_guest_checkout_asks_to_sign_in_and_remembers_return(app):
-    open_page(app, "pages/checkout.py")
+    open_page(app, "views/checkout.py")
 
     assert not app.exception
     assert "Please sign in" in all_text(app)
-    assert app.session_state["return_to"] == "pages/checkout.py"
+    assert app.session_state["return_to"] == "views/checkout.py"
 
 
 def test_checkout_place_order_needs_demo_checkbox(app, fake_client):
     sign_in_as(app, CUSTOMER_ID, "customer")
     add_cart_row(fake_client, 102, 2)
-    open_page(app, "pages/checkout.py")
+    open_page(app, "views/checkout.py")
 
     assert not app.exception
     text = all_text(app)
@@ -165,7 +165,7 @@ def test_checkout_success_saves_email_and_opens_confirmation(app, fake_client):
     sign_in_as(app, CUSTOMER_ID, "customer")
     add_cart_row(fake_client, 102)
     fake_client.rpc_results["place_order"] = SUCCESS
-    open_page(app, "pages/checkout.py")
+    open_page(app, "views/checkout.py")
     app.checkbox(key="checkout_understood").check().run()
     first_key = app.session_state[orders.CHECKOUT_KEY_SESSION]
 
@@ -183,7 +183,7 @@ def test_checkout_stock_conflict_returns_to_cart(app, fake_client):
     fake_client.rpc_results["place_order"] = FakeApiError(
         "NOT_ENOUGH_SEATS: SQL for Analysts", "seats_available=1"
     )
-    open_page(app, "pages/checkout.py")
+    open_page(app, "views/checkout.py")
     app.checkbox(key="checkout_understood").check().run()
 
     app.button(key="checkout_place_order").click().run()
@@ -196,7 +196,7 @@ def test_checkout_stock_conflict_returns_to_cart(app, fake_client):
 def test_checkout_blocks_cart_with_problems(app, fake_client):
     sign_in_as(app, CUSTOMER_ID, "customer")
     add_cart_row(fake_client, 103)  # sold out
-    open_page(app, "pages/checkout.py")
+    open_page(app, "views/checkout.py")
 
     assert "need your attention" in all_text(app)
     assert len(app.button) == 0 or all(b.key != "checkout_place_order" for b in app.button)
@@ -212,7 +212,7 @@ def test_confirmation_shows_order_and_celebrates_once(app):
         "show": True,
     }
     app.query_params["order"] = "1"
-    open_page(app, "pages/order_confirmation.py")
+    open_page(app, "views/order_confirmation.py")
 
     assert not app.exception
     text = all_text(app)
@@ -225,14 +225,14 @@ def test_confirmation_shows_order_and_celebrates_once(app):
 def test_confirmation_unknown_order_is_not_found(app):
     sign_in_as(app, CUSTOMER_ID, "customer")
     app.query_params["order"] = "999"
-    open_page(app, "pages/order_confirmation.py")
+    open_page(app, "views/order_confirmation.py")
 
     assert not app.exception
     assert "Order not found." in [w.value for w in app.warning]
 
 
 def test_confirmation_guest_is_asked_to_sign_in(app):
-    open_page(app, "pages/order_confirmation.py")
+    open_page(app, "views/order_confirmation.py")
 
     assert "Please sign in" in all_text(app)
 
@@ -252,7 +252,7 @@ def test_my_orders_lists_orders_and_email_preview(app, fake_client):
             "created_at": "2026-11-01T10:00:00+00:00",
         }
     )
-    open_page(app, "pages/my_orders.py")
+    open_page(app, "views/my_orders.py")
 
     assert not app.exception
     assert app.dataframe[0].value["Order"].tolist() == ["ORD-20261101-0001"]
@@ -262,13 +262,13 @@ def test_my_orders_lists_orders_and_email_preview(app, fake_client):
 
 def test_my_orders_empty_state(app):
     sign_in_as(app, OWNER_ID, "owner")
-    open_page(app, "pages/my_orders.py")
+    open_page(app, "views/my_orders.py")
 
     assert "No orders yet" in all_text(app)
 
 
 def test_my_orders_guest_is_asked_to_sign_in(app):
-    open_page(app, "pages/my_orders.py")
+    open_page(app, "views/my_orders.py")
 
     assert "Please sign in" in all_text(app)
 
@@ -293,7 +293,7 @@ def staff_orders(monkeypatch):
 
 def test_admin_orders_staff_sees_table_and_can_cancel(app, fake_client, staff_orders):
     sign_in_as(app, STAFF_ID, "staff")
-    open_page(app, "pages/admin_orders.py")
+    open_page(app, "views/admin_orders.py")
 
     assert not app.exception
     assert app.dataframe[0].value["Customer email"].tolist() == ["customer@example.test"]
@@ -306,7 +306,7 @@ def test_admin_orders_staff_sees_table_and_can_cancel(app, fake_client, staff_or
 
 def test_admin_orders_customer_is_denied(app, staff_orders):
     sign_in_as(app, CUSTOMER_ID, "customer")
-    open_page(app, "pages/admin_orders.py")
+    open_page(app, "views/admin_orders.py")
 
     assert "You don't have access to this page." in [e.value for e in app.error]
     assert len(app.dataframe) == 0
@@ -316,7 +316,7 @@ def test_admin_orders_customer_is_denied(app, staff_orders):
 def test_confirmation_staff_cannot_see_customer_order(app):
     sign_in_as(app, STAFF_ID, "staff")  # RLS lets staff READ every order
     app.query_params["order"] = "1"  # the customer's order
-    open_page(app, "pages/order_confirmation.py")
+    open_page(app, "views/order_confirmation.py")
 
     assert not app.exception
     assert "Order not found." in [w.value for w in app.warning]
@@ -327,7 +327,7 @@ def test_confirmation_shows_cancelled_status(app, fake_client):
     sign_in_as(app, CUSTOMER_ID, "customer")
     fake_client.tables["orders"][0]["status"] = "cancelled"
     app.query_params["order"] = "1"
-    open_page(app, "pages/order_confirmation.py")
+    open_page(app, "views/order_confirmation.py")
 
     assert "Order cancelled" in all_text(app)
     assert "Thank you" not in all_text(app)
@@ -337,7 +337,7 @@ def test_checkout_success_clears_key_and_flag(app, fake_client):
     sign_in_as(app, CUSTOMER_ID, "customer")
     add_cart_row(fake_client, 102)
     fake_client.rpc_results["place_order"] = SUCCESS
-    open_page(app, "pages/checkout.py")
+    open_page(app, "views/checkout.py")
     app.checkbox(key="checkout_understood").check().run()
 
     app.button(key="checkout_place_order").click().run()
@@ -356,7 +356,7 @@ def test_checkout_stale_flag_does_not_place_order(app, fake_client):
     add_cart_row(fake_client, 102)
     fake_client.rpc_results["place_order"] = SUCCESS
     app.session_state["checkout_placing"] = True
-    open_page(app, "pages/checkout.py")
+    open_page(app, "views/checkout.py")
 
     assert not app.exception
     assert fake_client.rpc_calls == []
@@ -369,6 +369,6 @@ def test_cart_checkout_problem_is_escaped(app):
     app.session_state[orders.CHECKOUT_PROBLEM_KEY] = (
         "Only 1 seat(s) left for [click](http://x.test)."
     )
-    open_page(app, "pages/cart.py")
+    open_page(app, "views/cart.py")
 
     assert r"\[click\]\(http://x\.test\)" in all_text(app)

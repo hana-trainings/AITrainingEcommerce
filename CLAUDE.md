@@ -8,7 +8,7 @@ SkillForge Academy: a demo store selling fictional AI and Data training courses,
 - Security and quality: `docs/requirements/03-non-functional-requirements.md`
 
 ## Layers (explain these to the student when asked)
-page (`app/pages`) -> service (`app/services`) -> Supabase table + security rule (`supabase/migrations`)
+page (`app/views`) -> service (`app/services`) -> Supabase table + security rule (`supabase/migrations`)
 Pages never call Supabase directly. Reusable UI is in `app/components`. Business rules live in services or database functions.
 
 ## Rules

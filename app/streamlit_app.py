@@ -160,6 +160,13 @@ pages = {
             show=is_admin,
         ),
         page(
+            routes.ADMIN_EMAILS,
+            "Email drafts",
+            ":material/drafts:",
+            "Emails the store created (never sent).",
+            show=is_admin,
+        ),
+        page(
             routes.ADMIN_STAFF,
             "Staff",
             ":material/manage_accounts:",
@@ -170,5 +177,8 @@ pages = {
 }
 
 current_page = st.navigation(pages, position="sidebar")
-render_header(user)
+# The header search shows only where people browse. Courses has its own big search box;
+# sign in, register and checkout stay focused on their form; admin stays plain (doc 02).
+SEARCH_PAGES = {"", "home", "course_detail", "learning_paths", "cart", "my_orders", "passport"}
+render_header(user, show_search=current_page.url_path in SEARCH_PAGES)
 current_page.run()

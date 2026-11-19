@@ -10,7 +10,7 @@ Story: <!-- pick code + story ID, e.g. U1-03 US-101 Browse catalog -->
 - [ ] `ruff check .` passes
 - [ ] `python -m pytest tests/unit -q` passes
 - [ ] No secrets: no `.env`, `secrets.toml`, `sb_secret_...` key or password in the diff
-- [ ] Pages call services only (no direct Supabase calls in `app/pages`)
+- [ ] Pages call services only (no direct Supabase calls in `app/views`)
 - [ ] Screenshots of the page added below (desktop and phone width)
 
 ## Acceptance criteria met

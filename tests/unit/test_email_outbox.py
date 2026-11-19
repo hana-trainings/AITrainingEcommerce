@@ -187,3 +187,74 @@ def test_safe_preview_html_keeps_the_real_email_readable():
     assert "Hi Casey" in preview and "ORD-20261101-0001" in preview
     assert "Python &lt;b&gt;for&lt;/b&gt; Data" in preview  # still escaped
     assert "style" not in preview
+
+
+# ---------------------------------------------------------------- welcome email + drafts (0030)
+def test_order_confirmation_is_saved_as_a_draft(customer, fake_client):
+    email_outbox.save_confirmation_email(1)
+
+    row = fake_client.tables["email_outbox"][0]
+    assert row["email_type"] == email_outbox.ORDER_CONFIRMATION
+    assert row["status"] == "draft"
+    assert row["order_id"] == 1
+
+
+def test_build_welcome_email_escapes_the_name():
+    email = email_outbox.build_welcome_email(CUSTOMER_ID, "casey@example.test", "<b>Casey</b>")
+
+    assert email["subject"] == "Welcome to SkillForge Academy"
+    assert "&lt;b&gt;Casey&lt;/b&gt;" in email["html_body"]
+    assert "<b>Casey</b>" not in email["html_body"]
+    assert email_outbox.WELCOME_FOOTER in email["html_body"]
+    assert re.fullmatch(r"welcome_[A-Za-z0-9_-]{1,8}_\d{14}\.html", email["file_name"])
+
+
+def test_save_welcome_email_saves_a_draft_and_a_file(session_state, fake_client):
+    result = email_outbox.save_welcome_email(CUSTOMER_ID, "casey@example.test", "Casey")
+
+    assert result.ok
+    row = fake_client.tables["email_outbox"][0]
+    assert row["email_type"] == email_outbox.WELCOME
+    assert row["status"] == "draft"
+    assert row["order_id"] is None
+    assert row["user_id"] == CUSTOMER_ID
+    assert row["to_email"] == "casey@example.test"
+    assert (email_outbox.OUTBOX_PATH / row["file_name"]).exists()
+
+
+def test_save_welcome_email_never_raises(session_state, fake_client, monkeypatch):
+    def broken_insert(*_args, **_kwargs):
+        raise RuntimeError("database down")
+
+    monkeypatch.setattr(email_outbox, "_insert_draft", broken_insert)
+
+    result = email_outbox.save_welcome_email(CUSTOMER_ID, "casey@example.test", "Casey")
+
+    assert not result.ok
+    assert "database down" not in result.message  # no technical details (NFR-SEC-17)
+
+
+def test_save_welcome_email_twice_is_fine(session_state, fake_client, monkeypatch):
+    class UniqueViolation(Exception):
+        code = "23505"  # what Postgres says for the second welcome email (0030 unique index)
+
+    def duplicate_insert(*_args, **_kwargs):
+        raise UniqueViolation("duplicate key value violates unique constraint")
+
+    monkeypatch.setattr(email_outbox, "_insert_draft", duplicate_insert)
+
+    assert email_outbox.save_welcome_email(CUSTOMER_ID, "casey@example.test", "Casey").ok
+
+
+def test_list_drafts_newest_first_and_by_type(session_state, fake_client):
+    fake_client.tables["email_outbox"].extend(
+        [
+            {"id": 1, "email_type": "welcome", "subject": "Old", "created_at": "2026-11-01"},
+            {"id": 2, "email_type": "order_confirmation", "subject": "Mid",
+             "created_at": "2026-11-02"},
+            {"id": 3, "email_type": "welcome", "subject": "New", "created_at": "2026-11-03"},
+        ]
+    )
+
+    assert [d["subject"] for d in email_outbox.list_drafts()] == ["New", "Mid", "Old"]
+    assert [d["subject"] for d in email_outbox.list_drafts(email_outbox.WELCOME)] == ["New", "Old"]

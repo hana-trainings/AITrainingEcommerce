@@ -1,8 +1,15 @@
-"""Order confirmation "emails" (US-406). Nothing is ever really sent.
+"""The app's email service. Nothing is ever really sent: every email is a DRAFT.
 
-The email is written to an HTML file in outbox/ (git-ignored) AND saved in the
-email_outbox table, because cloud hosts may delete files on restart (NFR-DEP-04).
-All order values put into the HTML must be escaped with html.escape (NFR-SEC-15).
+Each email is saved in the email_outbox table (status 'draft', migration 0030) and
+also written to an HTML file in outbox/ (git-ignored). The table is the real copy,
+because cloud hosts may delete files on restart (NFR-DEP-04).
+
+Kinds of email:
+- order confirmation: one per order, saved at checkout (US-406).
+- welcome: one per user, saved when someone registers. It replaces the email
+  Supabase Auth would send, which is switched off for this demo.
+
+Every value put into the HTML must be escaped with html.escape (NFR-SEC-15).
 """
 
 import html
@@ -23,6 +30,16 @@ OUTBOX_FOLDER = "outbox"
 # outbox/ at the repo root, whatever folder the app was started from.
 OUTBOX_PATH = Path(__file__).resolve().parents[2] / OUTBOX_FOLDER
 DEMO_FOOTER = "This is a demo store. No payment was taken and no real email was sent."
+WELCOME_FOOTER = "This is a demo store. This email is a saved draft and was never sent."
+
+# The email_type values the table accepts (migration 0030).
+ORDER_CONFIRMATION = "order_confirmation"
+WELCOME = "welcome"
+EMAIL_TYPE_LABELS = {ORDER_CONFIRMATION: "Order confirmation", WELCOME: "Welcome"}
+
+DRAFT_COLUMNS = (
+    "id, email_type, status, order_id, user_id, to_email, subject, html_body, file_name, created_at"
+)
 
 
 def _safe_file_part(text: str) -> str:
@@ -89,6 +106,55 @@ def build_confirmation_email(order: Order, to_email: str, display_name: str) -> 
     return EmailRecord(to_email=to_email, subject=subject, html_body=body, file_name=file_name)
 
 
+def build_welcome_email(user_id: str, to_email: str, display_name: str) -> EmailRecord:
+    """Return the welcome email for a new account (pure, no DB).
+
+    subject = "Welcome to SkillForge Academy",
+    file_name = "welcome_<first 8 characters of the user id>_<yyyymmddHHMMSS>.html".
+    """
+    subject = "Welcome to SkillForge Academy"
+    stamp = datetime.now(UTC).strftime("%Y%m%d%H%M%S")
+    file_name = f"welcome_{_safe_file_part(user_id)[:8] or 'user'}_{stamp}.html"
+    e = html.escape  # EVERY value from the user goes through it
+    body = f"""<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>{e(subject)}</title></head>
+<body style="font-family: Arial, sans-serif; color: #0F172A; background: #F8FAFC; padding: 16px;">
+<div style="max-width: 600px; margin: auto; background: #FFFFFF; padding: 24px;">
+<p><strong>To:</strong> {e(to_email)}<br><strong>Subject:</strong> {e(subject)}</p>
+<h1 style="color: #4F46E5; font-size: 24px;">SkillForge Academy</h1>
+<p>Hi {e(display_name or "learner")},</p>
+<p>Welcome aboard! Your account is ready and your Learner Passport has started.</p>
+<p>Here is what you can do next:</p>
+<ul>
+<li>Browse the AI and Data courses and pick one that interests you.</li>
+<li>Follow a learning path to build your skills step by step.</li>
+<li>Earn XP and badges as you unlock courses.</li>
+</ul>
+<p>Happy learning!<br>The SkillForge Academy team</p>
+<hr><p style="color: #475569; font-size: 14px;">{e(WELCOME_FOOTER)}</p>
+</div></body></html>
+"""
+    return EmailRecord(to_email=to_email, subject=subject, html_body=body, file_name=file_name)
+
+
+def _insert_draft(
+    email: EmailRecord, user_id: str, email_type: str, order_id: int | None = None
+) -> None:
+    """Save one email as a draft row in email_outbox. Raises if the database refuses it."""
+    get_client().table("email_outbox").insert(
+        {
+            "email_type": email_type,
+            "status": "draft",  # the only status: this app never sends email
+            "order_id": order_id,
+            "user_id": user_id,
+            "to_email": email["to_email"],
+            "subject": email["subject"],
+            "html_body": email["html_body"],
+            "file_name": email["file_name"],
+        }
+    ).execute()
+
+
 def _write_file(email: EmailRecord) -> bool:
     """Write the email to outbox/<file_name>. Returns False (and logs) if that fails."""
     try:
@@ -135,16 +201,7 @@ def save_confirmation_email(order_id: int) -> ActionResult:
         return failed
 
     try:
-        get_client().table("email_outbox").insert(
-            {
-                "order_id": int(order_id),
-                "user_id": user.id,
-                "to_email": email["to_email"],
-                "subject": email["subject"],
-                "html_body": email["html_body"],
-                "file_name": email["file_name"],
-            }
-        ).execute()
+        _insert_draft(email, user.id, ORDER_CONFIRMATION, order_id=int(order_id))
     except Exception as error:
         if _is_duplicate(error):  # saved a moment ago by another call: that is fine
             return saved
@@ -175,6 +232,40 @@ def get_email_for_order(order_id: int) -> EmailRecord | None:
     )
     rows = response.data or []
     return rows[0] if rows else None  # type: ignore[return-value]
+
+
+def save_welcome_email(user_id: str, to_email: str, display_name: str) -> ActionResult:
+    """Save the welcome email draft for a new account. Called by auth.register().
+
+    Must NEVER raise: a missing welcome email must not stop someone registering.
+    Only ONE welcome email per user is kept (unique index, migration 0030).
+    """
+    saved = ActionResult(ok=True, message="Welcome email saved.")
+    try:
+        email = build_welcome_email(user_id, to_email, display_name)
+        _insert_draft(email, user_id, WELCOME)
+    except Exception as error:
+        if _is_duplicate(error):  # this user already has their welcome email
+            return saved
+        logger.warning("welcome email not saved: user_id=%s %s", user_id, type(error).__name__)
+        return ActionResult(ok=False, message="We could not save the welcome email.")
+
+    file_ok = _write_file(email)  # the table row is the real copy; the file is extra
+    logger.info("welcome email saved: user_id=%s file_written=%s", user_id, file_ok)
+    return ActionResult(ok=True, message=saved.message, data={"file_written": file_ok})
+
+
+def list_drafts(email_type: str | None = None, limit: int = 100) -> list[EmailRecord]:
+    """Return saved email drafts, newest first. Optionally only one email_type.
+
+    The database decides what each person sees: staff and owner see every draft,
+    a customer only their own (RLS from migration 0012).
+    """
+    query = get_client().table("email_outbox").select(DRAFT_COLUMNS)
+    if email_type:
+        query = query.eq("email_type", email_type)
+    response = query.order("created_at", desc=True).limit(limit).execute()
+    return list(response.data or [])  # type: ignore[arg-type]
 
 
 # ---------------------------------------------------------------- safe preview

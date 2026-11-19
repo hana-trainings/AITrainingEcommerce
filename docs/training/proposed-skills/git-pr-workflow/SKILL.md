@@ -14,7 +14,7 @@ git checkout -b feature/<pick>-<story>-<short-name>      # e.g. feature/U2-03-US
 Prefixes: `feature/`, `fix/`, `design/`, `db/`.
 
 ## Commit (during the story)
-- Add files **by name**: `git add app/pages/checkout.py tests/unit/test_checkout.py`. Never `git add -A` or `git add .`.
+- Add files **by name**: `git add app/views/checkout.py tests/unit/test_checkout.py`. Never `git add -A` or `git add .`.
 - Message: `<story id>: <what changed>` (for example `US-402: disable Place order until demo box is ticked`).
 - Small commits, each one passing tests.
 

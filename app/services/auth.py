@@ -37,6 +37,23 @@ REFRESH_MARGIN_SECONDS = 60
 GENERIC_SIGN_IN_ERROR = "Email or password is incorrect."
 GENERIC_REGISTER_ERROR = "We could not create your account. Please try again."
 DUPLICATE_EMAIL_ERROR = "An account with this email already exists."
+# The account WAS created but Supabase wants the email confirmed first ("Confirm email" ON).
+CONFIRM_EMAIL_MESSAGE = (
+    "Your account was created. Please confirm your email address, then sign in."
+)
+# Friendlier messages for Supabase sign-up error codes we know about.
+REGISTER_ERRORS_BY_CODE = {
+    "email_address_invalid": "This email address is not accepted. Please use a different one.",
+    "weak_password": "This password is too weak. Please choose a stronger one.",
+    # Supabase's built-in mailer only sends to team members while "Confirm email" is ON.
+    "email_address_not_authorized": "Sign-up is not set up yet. Please ask your trainer.",
+    # The built-in mailer sends only a few emails an hour (only while "Confirm email" is ON).
+    "over_email_send_rate_limit": (
+        "Too many sign-ups right now. Please wait a few minutes and try again."
+    ),
+    "signup_disabled": "New sign-ups are switched off right now. Please ask your trainer.",
+    "email_provider_disabled": "New sign-ups are switched off right now. Please ask your trainer.",
+}
 
 DISPLAY_NAME_MAX = 50
 EMAIL_MAX = 254
@@ -276,16 +293,29 @@ def register(display_name: str, email: str, password: str, confirm_password: str
     except Exception as error:
         if _is_duplicate_email_error(error):
             return ActionResult(ok=False, message=DUPLICATE_EMAIL_ERROR)
-        logger.warning("register failed: %s", type(error).__name__)
-        return ActionResult(ok=False, message=GENERIC_REGISTER_ERROR)
+        code = str(getattr(error, "code", "") or "")
+        # The Supabase error CODE (e.g. "email_address_invalid") never contains the email,
+        # so it is safe to log and tells the trainer what to fix in the dashboard.
+        logger.warning(
+            "register failed: %s code=%s status=%s",
+            type(error).__name__,
+            code or "-",
+            getattr(error, "status", "-"),
+        )
+        message = REGISTER_ERRORS_BY_CODE.get(code, GENERIC_REGISTER_ERROR)
+        return ActionResult(ok=False, message=message)
 
     if response.user is None or response.session is None:
         # No session means email confirmation is ON in Supabase; the demo needs it OFF.
         logger.warning("register returned no session; is email confirmation disabled?")
-        return ActionResult(ok=False, message=GENERIC_REGISTER_ERROR)
+        # Not an error: the account exists. The page shows this as information, not in red.
+        return ActionResult(
+            ok=False, message=CONFIRM_EMAIL_MESSAGE, data={"needs_confirmation": True}
+        )
 
     user = _build_current_user(response.user)
     _remember_session(response.session, user)
+    _save_welcome_email(user)
     # A guest who registers from checkout keeps the courses in their cart (US-401, US-306).
     cart_warning = _merge_guest_cart(user.id)
     logger.info("register ok: user_id=%s", user.id)
@@ -294,6 +324,20 @@ def register(display_name: str, email: str, password: str, confirm_password: str
         message=f"{_register_welcome(user)} {cart_warning}".strip(),
         data={"cart_warning": cart_warning},
     )
+
+
+def _save_welcome_email(user: CurrentUser) -> None:
+    """Save the welcome email as a draft (our own email service; nothing is sent).
+
+    Never blocks registering: the account already exists, the email is a nice extra.
+    """
+    # Imported here, not at the top: email_outbox imports auth (circular import).
+    from app.services import email_outbox
+
+    try:
+        email_outbox.save_welcome_email(user.id, user.email, user.display_name)
+    except Exception as error:  # save_welcome_email never raises, but be safe
+        logger.warning("welcome email failed: user_id=%s %s", user.id, type(error).__name__)
 
 
 def _is_duplicate_email_error(error: Exception) -> bool:

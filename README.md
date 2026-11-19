@@ -50,7 +50,7 @@ Good to know:
 ```
 app/
 ├── streamlit_app.py   # entry point: settings check, navigation, header (stories don't edit it)
-├── pages/             # one file per screen (stubs say "Coming soon - US-xxx")
+├── views/             # one file per screen (stubs say "Coming soon - US-xxx")
 ├── components/        # shared UI: course card, seat meter, XP, badges, guards, states, header
 ├── services/          # the only code that talks to Supabase (see docs/architecture/service-contracts.md)
 ├── models/domain.py   # data shapes shared by services and pages

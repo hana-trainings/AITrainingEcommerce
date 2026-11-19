@@ -41,21 +41,24 @@ def show_cards(courses: list[Course], key_prefix: str) -> None:
 
 
 def hero() -> None:
-    """Guest hero with the two main calls to action."""
-    with st.container(border=True):
+    """Guest hero with the two main calls to action (gradient comes from style.py)."""
+    with st.container(key="hero"):
         st.title("Unlock your AI & Data skills")
         st.markdown(
             "Pick a learning path, unlock hands-on courses, and earn XP and badges "
             "as you grow. Made for curious learners."
         )
-        with st.container(horizontal=True):
-            st.page_link(routes.COURSES, label="Explore courses", icon=":material/school:")
-            st.page_link(routes.LEARNING_PATHS, label="Find your path", icon=":material/route:")
+        with st.container(horizontal=True, gap="small"):
+            # Buttons are verbs (doc 02 section 9). switch_page keeps the session.
+            if st.button("Explore courses", icon=":material/school:", key="hero_courses"):
+                st.switch_page(routes.COURSES)
+            if st.button("Find your path", icon=":material/route:", key="hero_paths"):
+                st.switch_page(routes.LEARNING_PATHS)
 
 
 def welcome_card(signed_in: CurrentUser) -> None:
     """Signed-in variant: "Welcome back, name · Level 2 Explorer · 120 XP to Practitioner"."""
-    with st.container(border=True):
+    with st.container(key="welcome"):
         st.title(f"Welcome back, {escape_markdown(signed_in.display_name)}")
         try:
             progress = gamification.get_level_progress(signed_in.xp_total)
@@ -97,19 +100,27 @@ else:
     welcome_card(user)
 
 # ---------------------------------------------------------------- how it works
-with st.container(horizontal=True, gap="medium"):
-    for icon, title, text in (
-        (":material/route:", "1. Pick a path", "Choose a learning path that fits your goal."),
-        (":material/lock_open:", "2. Unlock courses", "Add courses to your cart and unlock them."),
-        (
-            ":material/bolt:",
-            "3. Earn XP & badges",
-            "Every course you unlock adds XP to your level.",
-        ),
-    ):
-        with st.container(border=True, width=300):
-            st.markdown(f"{icon} **{title}**")
-            st.caption(text)
+# Three equal columns on desktop; Streamlit stacks them on phones.
+# Each step's key gives it its own tint (style.py).
+HOW_IT_WORKS = (
+    (
+        "how_path",
+        ":material/route:",
+        "1. Pick a path",
+        "Choose a learning path that fits your goal.",
+    ),
+    (
+        "how_unlock",
+        ":material/lock_open:",
+        "2. Unlock courses",
+        "Add courses to your cart and unlock them.",
+    ),
+    ("how_xp", ":material/bolt:", "3. Earn XP & badges", "Every course you unlock adds XP."),
+)
+for column, (key, icon, title, text) in zip(st.columns(3), HOW_IT_WORKS, strict=True):
+    with column, st.container(key=key):
+        st.markdown(f"{icon} **{title}**")
+        st.markdown(text)
 
 # ---------------------------------------------------------------- learning paths
 st.header("Learning paths")

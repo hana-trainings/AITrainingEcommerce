@@ -31,7 +31,10 @@ st.caption("Please use a test or training email address, not your personal one."
 FEEDBACK_KEY = "register_feedback"
 feedback: dict = st.session_state.get(FEEDBACK_KEY, {})
 errors: dict[str, str] = feedback.get("errors", {})
-if feedback.get("message"):
+if feedback.get("message") and feedback.get("needs_confirmation"):
+    # The account WAS created; it only waits for the email link, so this is not an error.
+    st.info(feedback["message"], icon=":material/mark_email_unread:")
+elif feedback.get("message"):
     st.error(feedback["message"], icon=":material/error:")
 
 with st.form("register_form"):
@@ -80,6 +83,7 @@ if submitted:
         st.session_state[FEEDBACK_KEY] = {
             "message": result.message,
             "errors": result.data.get("errors", {}),
+            "needs_confirmation": result.data.get("needs_confirmation", False),
         }
         st.rerun()  # draw the messages next to the fields
 

@@ -11,6 +11,7 @@ service is wrapped and simply shows nothing (or 0) if that call fails.
 import streamlit as st
 
 from app.components.states import show_flash
+from app.components.style import apply_storefront_style
 from app.components.xp import level_chip, xp_bar, xp_progress_text
 from app.config import routes
 from app.models.domain import ADMIN_ROLES, CurrentUser, LevelProgress
@@ -23,6 +24,11 @@ logger = get_logger(__name__)
 STORE_NAME = "SkillForge Academy"
 DEMO_NOTICE = "Demo store – no real payments"
 GUEST_XP_HINT = "Sign up to start earning XP"
+
+# Same session keys as the Courses page, so a header search shows there (US-102).
+CATALOG_KEYWORD = "catalog_keyword"
+CATALOG_KEYWORD_BOX = "catalog_keyword_box"
+HEADER_SEARCH_BOX = "header_search_box"
 
 
 def _cart_count() -> int:
@@ -87,20 +93,60 @@ def _header_xp(progress: LevelProgress | None) -> None:
         _level_widgets(progress)
 
 
-def render_header(user: CurrentUser | None) -> None:
-    """Draw the header. `user` is None for guests."""
+def _search_box() -> None:
+    """Header search (doc 02 section 5.2). Enter opens the Courses page with the results."""
+    with (
+        st.form("header_search", border=False, enter_to_submit=True, width=360),
+        st.container(horizontal=True, vertical_alignment="center", gap="small"),
+    ):
+        st.text_input(
+            "Search courses",
+            key=HEADER_SEARCH_BOX,
+            placeholder="Search courses",
+            max_chars=100,
+            icon=":material/search:",
+            label_visibility="collapsed",
+        )
+        # A visible button for mouse and touch users; Enter works too.
+        submitted = st.form_submit_button("Search", type="primary")
+    if submitted:
+        keyword = (st.session_state.get(HEADER_SEARCH_BOX) or "").strip()
+        st.session_state[CATALOG_KEYWORD] = keyword
+        st.session_state[CATALOG_KEYWORD_BOX] = keyword
+        st.switch_page(routes.COURSES)
+
+
+def render_header(user: CurrentUser | None, *, show_search: bool = True) -> None:
+    """Draw the header. `user` is None for guests.
+
+    show_search=False on the Courses page, which has its own bigger search box.
+    """
+    apply_storefront_style()
     show_flash()
     progress = _level_progress(user) if user is not None else None
-    with st.container(horizontal=True, vertical_alignment="center"):
-        st.markdown(f"### :material/school: {STORE_NAME}")
-        st.space("stretch")
+    with st.container(key="site_header", gap="small"):
+        # The demo notice sits on its own line so it is always seen (doc 02 section 5.2).
         st.badge(DEMO_NOTICE, icon=":material/info:", color="blue")
-        if user is None:
-            st.page_link(routes.REGISTER, label=GUEST_XP_HINT, icon=":material/bolt:")
-        else:
-            _header_xp(progress)
-        st.page_link(routes.CART, label=cart_label(_cart_count()), icon=":material/shopping_cart:")
-        if user is None:
-            st.page_link(routes.SIGN_IN, label="Sign in", icon=":material/login:")
-        else:
-            _account_menu(user, progress)
+        # Row 1: store name and account area. Wraps onto two lines on phones.
+        with st.container(horizontal=True, vertical_alignment="center", gap="small"):
+            st.markdown(f"### :material/school: :blue[{STORE_NAME}]", width="content")
+            st.space("stretch")
+            if user is None:
+                st.page_link(routes.REGISTER, label=GUEST_XP_HINT, icon=":material/bolt:")
+            else:
+                _header_xp(progress)
+            st.page_link(
+                routes.CART, label=cart_label(_cart_count()), icon=":material/shopping_cart:"
+            )
+            if user is None:
+                st.page_link(routes.SIGN_IN, label="Sign in", icon=":material/login:")
+            else:
+                _account_menu(user, progress)
+        # Row 2: main links and search (doc 02 section 5.2).
+        with st.container(horizontal=True, vertical_alignment="center", gap="small"):
+            st.page_link(routes.HOME, label="Home", icon=":material/home:")
+            st.page_link(routes.COURSES, label="Courses", icon=":material/school:")
+            st.page_link(routes.LEARNING_PATHS, label="Learning paths", icon=":material/route:")
+            if show_search:
+                st.space("stretch")
+                _search_box()
