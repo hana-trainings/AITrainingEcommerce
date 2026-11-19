@@ -14,7 +14,7 @@ description: Use when writing or running unit tests for a story. Covers pytest f
 1. One test group per acceptance criterion. Name tests after the AC: `test_us402_ac3_place_order_disabled_until_checkbox_ticked`.
 2. For each story write at least: one happy path, one error path, one edge case (empty, zero, maximum, wrong role).
 3. Use the fake Supabase client and sample data from `tests/conftest.py`. Do not call the real network in unit tests.
-4. Use `AppTest.from_file("app/pages/<page>.py")` for pages. Set `session_state` to fake a signed-in role. Assert on widgets, text, and disabled state.
+4. Use `AppTest.from_file("app/views/<page>.py")` for pages. Set `session_state` to fake a signed-in role. Assert on widgets, text, and disabled state.
 5. Tests must not depend on each other or on test order.
 6. Never put real keys, emails, or passwords in tests.
 

@@ -1,0 +1,58 @@
+# Theme from docs/requirements/02-ui-ux-requirements.md section 3 (those tokens win).
+# Light theme first. Colors here feed st.badge, alerts and charts too.
+
+[theme]
+base = "light"
+primaryColor = "#4F46E5"            # primary: indigo, buttons/links/active
+linkColor = "#4F46E5"
+backgroundColor = "#F8FAFC"         # bg
+secondaryBackgroundColor = "#FFFFFF" # surface (cards, sidebar)
+textColor = "#0F172A"               # text
+borderColor = "#E2E8F0"
+# One sans-serif family (doc 02 section 3.3). Falls back to the default font offline.
+font = "Inter:https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+# Type scale from doc 02 section 3.3: H1 32px, H2 24px, H3 20px, body 16px, small 14px.
+headingFontSizes = ["32px", "24px", "20px", "16px", "14px", "14px"]
+headingFontWeights = [700, 700, 600, 600, 600, 600]
+baseFontSize = 16
+baseRadius = "0.5rem"
+
+# Named colors used by st.badge(color=...) in app/components:
+greenColor = "#10B981"              # success / Beginner level
+orangeColor = "#F97316"             # warning: few seats left
+redColor = "#DC2626"                # danger: errors, sold out
+yellowColor = "#F59E0B"             # accent-xp: XP pills and bars
+violetColor = "#7C3AED"             # Advanced level
+blueColor = "#4F46E5"               # Intermediate level (indigo)
+grayColor = "#94A3B8"               # locked
+
+# Darker text on tinted backgrounds keeps WCAG AA contrast (doc 02 section 8:
+# "use dark text on amber pills").
+yellowTextColor = "#78350F"
+orangeTextColor = "#9A3412"
+greenTextColor = "#065F46"
+grayTextColor = "#475569"           # text-muted
+
+# Dark-navy sidebar ("modern tech academy" mood, doc 02 section 3.1). A FULL color set,
+# so menu text and the Courses filters keep WCAG AA contrast on the dark background.
+[theme.sidebar]
+backgroundColor = "#1E1B4B"            # deep indigo-navy
+secondaryBackgroundColor = "#312E81"   # inputs and selected menu item
+textColor = "#EEF2FF"
+linkColor = "#C7D2FE"
+borderColor = "#4338CA"
+primaryColor = "#A5B4FC"               # slider and toggle color, readable on navy
+codeBackgroundColor = "#312E81"
+codeTextColor = "#EEF2FF"
+
+[client]
+# Never show stack traces to users (NFR-SEC-17); details stay in the terminal log.
+# While developing you can see them in the browser with:
+#   streamlit run app/streamlit_app.py --client.showErrorDetails=full
+showErrorDetails = "none"
+# Hide Streamlit's own "Deploy" toolbar from learners: the store should look like a store.
+toolbarMode = "minimal"
+
+[server]
+# Max upload size in MB. Course images are limited to 2 MB (US-703), so 5 is plenty.
+maxUploadSize = 5

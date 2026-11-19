@@ -1,0 +1,29 @@
+/*
+  SkillForge Academy design tokens (docs/requirements/02 section 3).
+  The live theme is set in .streamlit/config.toml; this file is the reference
+  for the style guide (D-01) and the polish stories (D-03, D-04). It is not
+  loaded by the app yet. If a polish story loads it, use st.html with this
+  STATIC file only, never with user text.
+*/
+:root {
+  --primary: #4F46E5;      /* indigo: buttons, links, active */
+  --accent-xp: #F59E0B;    /* amber: XP bars and labels (dark text on it) */
+  --success: #10B981;      /* emerald: unlocked, owned, confirmed */
+  --warning: #F97316;      /* orange: few seats left */
+  --danger: #DC2626;       /* red: errors, sold out */
+  --locked: #94A3B8;       /* slate: locked nodes and badges */
+  --bg: #F8FAFC;
+  --surface: #FFFFFF;
+  --text: #0F172A;
+  --text-muted: #475569;
+
+  --level-beginner: #10B981;
+  --level-intermediate: #4F46E5;
+  --level-advanced: #7C3AED;
+
+  --font-h1: 32px;
+  --font-h2: 24px;
+  --font-h3: 20px;
+  --font-body: 16px;
+  --font-small: 14px;     /* minimum size anywhere */
+}

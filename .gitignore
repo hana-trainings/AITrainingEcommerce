@@ -8,6 +8,8 @@ env/
 
 # Secrets - never commit these
 .env
+.env.*
+!.env.example
 .streamlit/secrets.toml
 
 # Demo confirmation emails (written at runtime)

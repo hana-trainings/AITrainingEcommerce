@@ -1,0 +1,21 @@
+# Tool settings only. This project is not a Python package you install;
+# dependencies live in requirements.txt.
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+extend-exclude = [".venv", ".claude", "supabase", "docs"]
+
+[tool.ruff.lint]
+# E/F/W: errors and pyflakes, I: import order, B: common bugs,
+# UP: modern Python syntax, SIM: simpler code, S: basic security checks.
+select = ["E", "F", "W", "I", "B", "UP", "SIM", "S"]
+
+[tool.ruff.lint.per-file-ignores]
+# Tests use plain assert and fake passwords on purpose.
+"tests/**" = ["S101", "S105", "S106"]
+
+[tool.pytest.ini_options]
+# Lets tests write "from app.services import auth" from the repo root.
+pythonpath = ["."]
+testpaths = ["tests"]
